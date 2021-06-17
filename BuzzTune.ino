@@ -8,9 +8,17 @@
 #define onPointPIN  3
 #define wakePIN     HighPIN
 
+
+//LRA calibration values (from autocal)
+#define LRA_COMP  13
+#define LRA_BEMF  97
+#define LRA_FB    183
+
 //DotStar PIN Definitions
 #define DATAPIN    7
 #define CLOCKPIN   8
+
+#define DBG_LVL   0 //0: no Serial, 1: one time messages, 2: cyclic messages
 
 //init dotStar LED
 Adafruit_DotStar dot(1, DATAPIN, CLOCKPIN, DOTSTAR_BRG);
@@ -18,9 +26,9 @@ Adafruit_DotStar dot(1, DATAPIN, CLOCKPIN, DOTSTAR_BRG);
 //init Haptic driver
 Adafruit_DRV2605 drv;
 
-
+//globals
 bool High, Low, onPoint;
-
+  
 void setup() {
   //turn off dotstar
   dot.begin(); // Initialize pins for output
@@ -32,13 +40,22 @@ void setup() {
   pinMode(HighPIN, INPUT);
   pinMode(LowPIN, INPUT);
   pinMode(onPointPIN, INPUT);
+  
   //setup LowPower
   LowPower.attachInterruptWakeup(wakePIN, wake_CB, CHANGE);
   //setup haptic driver
   drv.begin();
   drv.selectLibrary(1);
+
+  #if (DBG_LVL)
+    Serial.begin(9600);
+    while(!Serial){
+      ;
+    }
+  #endif
+  AutoCal_LRA(2.0,2.5,204);
+  Init_LRA();
   
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -46,15 +63,18 @@ void loop() {
   High = digitalRead(HighPIN);
   Low = digitalRead(LowPIN);
   onPoint = digitalRead(onPointPIN);
-  Serial.print("High:");
-  Serial.print(High); //blue
-  Serial.print("\t");
-  Serial.print("Low:");
-  Serial.print(Low); //red
-  Serial.print("\t");
-  Serial.print("onPoint:");
-  Serial.println(onPoint); //green
 
+  #if (DBG_LVL>1)
+    Serial.print("High:");
+    Serial.print(High); //blue
+    Serial.print("\t");
+    Serial.print("Low:");
+    Serial.print(Low); //red
+    Serial.print("\t");
+    Serial.print("onPoint:");
+    Serial.println(onPoint); //green
+  #endif
+  
   //sleep when all pins are high level 
   if (High&&Low&&onPoint){
     digitalWrite(LED_BUILTIN,LOW);
@@ -70,11 +90,13 @@ void wake_CB(){
 
 //initialiaze LRA Vibra after AutoCal
 void Init_LRA(){                                  //(int Comp, int BEMF) {
-  Serial.println("Init LRA");
+  #if (DBG_LVL)
+    Serial.println("Init LRA");
+  #endif  
   //drv.writeRegister8(DRV2605_REG_RATEDV, 0x90); //3V
   //drv.writeRegister8(DRV2605_REG_CLAMPV, 0xA4); //3.6V Overdrive
   drv.writeRegister8(DRV2605_REG_FEEDBACK, 0xB6); //ERM default settings
-  //drv.writeRegister8(DRV2605_REG_AUTOCALCOMP, Comp); //AutoCal Compensation results
+  //drv.writeRegister8(DRV2605_REG_AUTOCALCOMP, LRA_COMP); //AutoCal Compensation results
   //drv.writeRegister8(DRV2605_REG_AUTOCALEMP, Comp); //Autocal Back EMF results
   drv.writeRegister8(DRV2605_REG_CONTROL1, 0x13); //Boost off, DC Coupling, DriveTime=19
   drv.writeRegister8(DRV2605_REG_CONTROL2, 0xF5); //default settings
@@ -88,9 +110,10 @@ void AutoCal_LRA(float f_rVolt, float f_ovVolt, int fLRA) {
   //sampletime 300µs
   int rVolt = f_rVolt * sqrt(1-(4*(300*1e-6)+300*1e-6)*fLRA) / (20.71*1e-3); //calculate rated Voltage
   int ovVolt = f_ovVolt / ((21.33*1e-3)*sqrt(1-fLRA*800*1e-6)); //calculate Overdrive Voltage
-  
-  Serial.print("Calibrating with rVolt=");Serial.print(f_rVolt);Serial.print("V and ovVolt=");Serial.print(f_ovVolt); Serial.println("V.");
-  Serial.println("----- Starting Autocal for LRA ------");
+  #if (DBG_LVL)
+    Serial.print("Calibrating with rVolt=");Serial.print(f_rVolt);Serial.print("V and ovVolt=");Serial.print(f_ovVolt); Serial.println("V.");
+    Serial.println("----- Starting Autocal for LRA ------");
+  #endif  
   int x=0;
   drv.writeRegister8(DRV2605_REG_RATEDV, rVolt); 
   drv.writeRegister8(DRV2605_REG_CLAMPV, ovVolt);
@@ -113,17 +136,22 @@ void AutoCal_LRA(float f_rVolt, float f_ovVolt, int fLRA) {
     
   x = drv.readRegister8(DRV2605_REG_STATUS); //read status
 
-  //-- error Detection --
-  if (x & 0x08) Serial.println ("Failed");
-  if (x & 0x04) Serial.println ("Feedback TimeOut");
-  if (x & 0x02) Serial.println ("OverTemp");
-  if (x & 0x01) Serial.println ("OverCurrent");
-  
-  //-- Results
-  Serial.print("Compensation: "); Serial.println(drv.readRegister8(DRV2605_REG_AUTOCALCOMP));
-  Serial.print("Back EMF: "); Serial.println(drv.readRegister8(DRV2605_REG_AUTOCALEMP));
-  Serial.print("Feedback: "); Serial.println(drv.readRegister8(DRV2605_REG_FEEDBACK));
-  
+  #if (DBG_LVL)
+    //-- error Detection --
+    if (x & 0x08) Serial.println ("Failed");
+    else Serial.println("Suceeded");
+    
+    if (x & 0x04) Serial.println ("Feedback TimeOut");
+    if (x & 0x02) Serial.println ("OverTemp");
+    if (x & 0x01) Serial.println ("OverCurrent");
+    
+    
+    //-- Results
+    Serial.print("Compensation: "); Serial.println(drv.readRegister8(DRV2605_REG_AUTOCALCOMP));
+    Serial.print("Back EMF: "); Serial.println(drv.readRegister8(DRV2605_REG_AUTOCALEMP));
+    Serial.print("Feedback: "); Serial.println(drv.readRegister8(DRV2605_REG_FEEDBACK));
+    
+    Serial.println("----- End of Autocal for LRA ------");
+  #endif  
   drv.writeRegister8(DRV2605_REG_MODE, 0x00); // Mode Ready
-  Serial.println("----- End of Autocal for LRA ------");
 }
