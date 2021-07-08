@@ -8,12 +8,11 @@
 #define onPointPIN  3
 #define wakePIN     HighPIN
 
-
-//LRA calibration values (from autocal)
-#define LRA_COMP  13
-#define LRA_BEMF  97
-#define LRA_FB    183
-
+//effects (see https://www.ti.com/lit/ds/slos854d/slos854d.pdf page 63)
+#define EFF_2LOW    18 //Strong Click 2
+#define EFF_POINT   52 //Pulsing Strong 1
+#define EFF_2HIGH   28 //Short Double Click Strong 2
+#define EFF_DLY_MS  500 //delay between effect playbacks
 //DotStar PIN Definitions
 #define DATAPIN    7
 #define CLOCKPIN   8
@@ -81,7 +80,20 @@ void loop() {
     LowPower.sleep();
     
   }
-  delay(100);
+  else{ //one of the leds are lit
+    if (!High)
+      drv.setWaveform(0, EFF_2HIGH);  // play effect 
+    else if (!onPoint)
+      drv.setWaveform(0, EFF_POINT);  // play effect
+    else if (!Low)
+      drv.setWaveform(0, EFF_2LOW);  // play effect
+    
+    drv.setWaveform(1, 0);       // end waveform
+    drv.go();
+  }
+  
+  delay(500);
+  
 }
 
 void wake_CB(){
