@@ -1,5 +1,0 @@
-{
-    "configuration": "opt=small,usbstack=arduino,debug=off",
-    "board": "adafruit:samd:adafruit_trinket_m0",
-    "sketch": "BuzzTune.ino"
-}
