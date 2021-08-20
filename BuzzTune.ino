@@ -90,6 +90,7 @@ void loop() {
     
     drv.setWaveform(1, 0);       // end waveform
     drv.go();
+    delay(2500); //wait 5s
   }
   
   delay(500);
